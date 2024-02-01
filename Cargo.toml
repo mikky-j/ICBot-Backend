@@ -1,0 +1,4 @@
+[workspace]
+members = [
+    "src/money_manager_backend",
+]

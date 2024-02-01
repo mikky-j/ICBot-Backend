@@ -1,0 +1,30 @@
+{
+  "canisters": {
+    "money_manager_backend": {
+      "candid": "src/money_manager_backend/money_manager_backend.did",
+      "package": "money_manager_backend",
+      "type": "rust"
+    },
+    "money_manager_frontend": {
+      "dependencies": [
+        "money_manager_backend"
+      ],
+      "frontend": {
+        "entrypoint": "src/money_manager_frontend/src/index.html"
+      },
+      "source": [
+        "src/money_manager_frontend/assets",
+        "dist/money_manager_frontend/"
+      ],
+      "type": "assets"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
