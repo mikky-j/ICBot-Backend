@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 mod error;
 mod uuid;
 mod wallet;
@@ -9,25 +10,16 @@ use ic_ledger_types::{
     AccountBalanceArgs, AccountIdentifier, Memo, Subaccount, Timestamp, Tokens, TransferArgs,
     DEFAULT_FEE, MAINNET_LEDGER_CANISTER_ID,
 };
-use itertools::Itertools;
 use wallet::Wallet;
 
 use crate::uuid::CustomUuid;
 
 pub type CanisterResult<T = (), E = CanisterError> = Result<T, E>;
 
-#[derive(Debug)]
-struct Transaction {
-    from: CustomUuid,
-    to: AccountIdentifier,
-    amount: Tokens,
-    date: u64,
-}
-
 #[derive(Debug, Default)]
 struct State {
     pub wallet_map: BTreeMap<CustomUuid, Wallet>,
-    pub transaction_map: BTreeMap<Memo, Transaction>,
+    pub transaction_map: BTreeMap<Memo, TransferArgs>,
     pub user_map: BTreeMap<String, CustomUuid>,
 }
 
@@ -41,36 +33,61 @@ thread_local! {
     static STATE: RefCell<State> = RefCell::default()
 }
 
-fn get_random_number(random_bytes: Vec<u8>) -> u64 {
-    random_bytes
-        .into_iter()
-        .tuple_windows::<(u8, u8, u8, u8, u8, u8, u8, u8)>()
-        .map(|(x1, x2, x3, x4, x5, x6, x7, x8)| {
-            u64::from_le_bytes([x1, x2, x3, x4, x5, x6, x7, x8])
-        })
-        .reduce(|acc, x| acc ^ x)
-        .expect("Random Bytes were empty")
-}
+// This is stupid, so fucking stupid
+// fn get_random_number(random_bytes: Vec<u8>) -> u64 {
+//     random_bytes
+//         .into_iter()
+//         .tuple_windows::<(u8, u8, u8, u8, u8, u8, u8, u8)>()
+//         .map(|(x1, x2, x3, x4, x5, x6, x7, x8)| {
+//             u64::from_le_bytes([x1, x2, x3, x4, x5, x6, x7, x8])
+//         })
+//         .reduce(|acc, x| acc ^ x)
+//         .expect("Random Bytes were empty")
+// }
 
 #[ic_cdk::update]
 async fn random_number() -> CanisterResult<u64> {
     let (random_bytes,) = ic_cdk::api::management_canister::main::raw_rand().await?;
-    Ok(get_random_number(random_bytes))
+    Ok(u64::from_le_bytes(
+        random_bytes
+            .try_into()
+            .expect("Random bytes were not up to 8 bytes"),
+    ))
+    // Ok(get_random_number(random_bytes))
 }
 
 #[ic_cdk::update]
-async fn get_all_usernames() -> CanisterResult<Vec<String>> {
-    let auth_canister_id: Principal = Principal::from_text("avqkn-guaaa-aaaaa-qaaea-cai").unwrap();
-    // So do it basically like this, Just do a result then put what you want in a tuple
-    // and as long as the type derive the candid type and serialize and desirialize, then you are
-    // good
-    let (names,): (Vec<String>,) =
-        ic_cdk::api::call::call(auth_canister_id, "get_all_usernames", ()).await?;
-    Ok(names)
-    // match names {
-    //     Ok((names,)) => Ok(names),
-    //     Err((rejection, error)) => Err(format!("Rejection: {:?} Error: {}", rejection, error)),
-    // }
+async fn test_randomness() -> CanisterResult<(Vec<u8>, Vec<u8>)> {
+    let (random_data_1,) = ic_cdk::api::management_canister::main::raw_rand().await?;
+    let (random_data_2,) = ic_cdk::api::management_canister::main::raw_rand().await?;
+    Ok((random_data_1, random_data_2))
+}
+
+#[ic_cdk::update]
+async fn create_wallet(principal: Principal, username: String) -> CanisterResult<Wallet> {
+    let (random_data,) = ic_cdk::api::management_canister::main::raw_rand().await?;
+
+    let subaccount = Subaccount(
+        random_data
+            .try_into()
+            .expect("Expected random data to be 32 bytes"),
+    );
+
+    let wallet_id = CustomUuid::random().await?;
+
+    STATE.with_borrow_mut(|state| {
+        if state.user_map.contains_key(&username) {
+            return Err(CanisterError::UserAlreadyExists);
+        }
+
+        let wallet = Wallet::new(wallet_id, principal, subaccount);
+
+        state.wallet_map.insert(wallet_id, wallet);
+
+        state.user_map.insert(username, wallet_id);
+
+        Ok(wallet)
+    })
 }
 
 #[ic_cdk::query]
@@ -96,6 +113,18 @@ fn get_wallet(wallet_id: CustomUuid) -> CanisterResult<Wallet> {
     })
 }
 
+#[ic_cdk::query]
+fn get_wallet_id_by_user(username: String) -> CanisterResult<CustomUuid> {
+    STATE.with_borrow(|state| {
+        state
+            .user_map
+            .get(&username)
+            .map(ToOwned::to_owned)
+            .ok_or(CanisterError::UserDoesNotExist)
+    })
+}
+
+// There should be a check to if the number that memo uses already exists
 #[ic_cdk::update]
 async fn send_to_account_identifier(
     from: CustomUuid,
@@ -124,28 +153,11 @@ async fn send_to_account_identifier(
     };
 
     let transfer_result =
-        ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, transfer_args).await??;
+        ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, transfer_args.clone()).await??;
 
-    // STATE.with_borrow_mut(|state| state.transaction_map.in)
+    STATE.with_borrow_mut(|state| state.transaction_map.insert(memo, transfer_args));
 
     Ok(transfer_result)
-}
-
-#[ic_cdk::update]
-async fn create_wallet(principal: Principal, subaccount: Subaccount) -> CanisterResult<Wallet> {
-    let wallet_id = CustomUuid::random().await?;
-    STATE.with_borrow_mut(|state| {
-        let wallet = Wallet::new(wallet_id, principal, subaccount);
-
-        state.wallet_map.insert(wallet_id, wallet);
-
-        Ok(wallet)
-    })
-}
-
-#[ic_cdk::query]
-fn greet(name: String) -> String {
-    format!("Hello, {}!", name)
 }
 
 //? Possible Optimization Here

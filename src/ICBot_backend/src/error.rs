@@ -13,6 +13,8 @@ pub enum CanisterError {
     NoWalletFound(CustomUuid),
     NotWalletOwner(Principal),
     TransferError(TransferError),
+    UserAlreadyExists,
+    UserDoesNotExist,
     UuidError(CustomUuidError),
 }
 
@@ -55,6 +57,12 @@ impl ToString for CanisterError {
             }
             CanisterError::TransferError(transfer_err) => transfer_err.to_string(),
             CanisterError::UuidError(err) => err.to_string(),
+            CanisterError::UserAlreadyExists => {
+                "Username is already in use. Please try another username".to_owned()
+            }
+            CanisterError::UserDoesNotExist => {
+                "The username that you provided does not exist".to_owned()
+            }
         }
     }
 }

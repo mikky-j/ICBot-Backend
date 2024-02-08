@@ -1,35 +1,25 @@
 {
   "canisters": {
-    "money_manager_backend": {
-      "candid": "src/money_manager_backend/money_manager_backend.did",
-      "package": "money_manager_backend",
+    "ICBot_backend": {
+      "candid": "src/ICBot_backend/ICBot_backend.did",
+      "package": "ICBot_backend",
       "type": "rust"
     },
     "ledger": {
       "type": "custom",
-      "candid": "https://raw.githubusercontent.com/dfinity/ic/044cfd5147fc97d7e5a214966941b6580c325d72/rs/rosetta-api/icrc1/ledger/ledger.did",
-      "wasm": "https://download.dfinity.systems/ic/044cfd5147fc97d7e5a214966941b6580c325d72/canisters/ic-icrc1-ledger.wasm.gz",
+      "candid": "ledger.did",
+      "wasm": "ic-icrc1-ledger.wasm.gz",
       "remote": {
         "id": {
           "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
         }
       }
-    },
-    "money_manager_frontend": {
-      "dependencies": [
-        "money_manager_backend"
-      ],
-      "frontend": {
-        "entrypoint": "src/money_manager_frontend/src/index.html"
-      },
-      "source": [
-        "src/money_manager_frontend/assets",
-        "dist/money_manager_frontend/"
-      ],
-      "type": "assets"
     }
   },
   "defaults": {
+    "replica": {
+      "subnet_type": "system"
+    },
     "build": {
       "args": "",
       "packtool": ""
