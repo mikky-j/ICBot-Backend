@@ -4,18 +4,17 @@ use candid::{types::Type, CandidType, Principal};
 use ic_cdk::api::call::RejectionCode;
 use ic_ledger_types::TransferError;
 
-use crate::uuid::{CustomUuid, CustomUuidError};
+use crate::WalletIdentifier;
 
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum CanisterError {
     CanisterCallError((RejectionCode, String)),
-    NoWalletFound(CustomUuid),
+    NoWalletFound(WalletIdentifier),
     NotWalletOwner(Principal),
     TransferError(TransferError),
     UserAlreadyExists,
     UserDoesNotExist,
-    UuidError(CustomUuidError),
 }
 
 // // ! GOD THIS IS SOOOOOOO GOING TO BITE ME IN THE ASS
@@ -37,12 +36,6 @@ impl From<TransferError> for CanisterError {
     }
 }
 
-impl From<CustomUuidError> for CanisterError {
-    fn from(value: CustomUuidError) -> Self {
-        Self::UuidError(value)
-    }
-}
-
 impl ToString for CanisterError {
     fn to_string(&self) -> String {
         match self {
@@ -56,7 +49,6 @@ impl ToString for CanisterError {
                 format!("Principal `{principal}` doesn't own the wallet")
             }
             CanisterError::TransferError(transfer_err) => transfer_err.to_string(),
-            CanisterError::UuidError(err) => err.to_string(),
             CanisterError::UserAlreadyExists => {
                 "Username is already in use. Please try another username".to_owned()
             }

@@ -1,18 +1,18 @@
 use candid::{CandidType, Principal};
 use ic_ledger_types::{AccountIdentifier, Subaccount};
 
-use crate::uuid::CustomUuid;
+use crate::WalletIdentifier;
 
 #[derive(CandidType, Debug, Clone, Copy)]
 pub struct Wallet {
-    wallet_id: CustomUuid,
+    wallet_id: WalletIdentifier,
     principal: Principal,
     subaccount: Subaccount,
     account_identifier: AccountIdentifier,
 }
 
 impl Wallet {
-    pub fn new(wallet_id: CustomUuid, principal: Principal, subaccount: Subaccount) -> Self {
+    pub fn new(wallet_id: WalletIdentifier, principal: Principal, subaccount: Subaccount) -> Self {
         let account_identifier = AccountIdentifier::new(&principal, &subaccount);
         Self {
             wallet_id,

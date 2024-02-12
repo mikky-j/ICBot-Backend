@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 mod error;
-mod uuid;
+// mod uuid;
 mod wallet;
 use std::{cell::RefCell, collections::BTreeMap};
 
@@ -12,68 +12,51 @@ use ic_ledger_types::{
 };
 use wallet::Wallet;
 
-use crate::uuid::CustomUuid;
-
 pub type CanisterResult<T = (), E = CanisterError> = Result<T, E>;
+
+pub type WalletIdentifier = Principal;
 
 #[derive(Debug, Default)]
 struct State {
-    pub wallet_map: BTreeMap<CustomUuid, Wallet>,
+    pub wallet_map: BTreeMap<WalletIdentifier, Wallet>,
     pub transaction_map: BTreeMap<Memo, TransferArgs>,
-    pub user_map: BTreeMap<String, CustomUuid>,
-}
-
-impl State {
-    fn contains_memo(&self, memo: Memo) -> bool {
-        self.transaction_map.contains_key(&memo)
-    }
+    /// This maps a String the wallet Principal or
+    pub user_map: BTreeMap<String, WalletIdentifier>,
 }
 
 thread_local! {
     static STATE: RefCell<State> = RefCell::default()
 }
 
-// This is stupid, so fucking stupid
-// fn get_random_number(random_bytes: Vec<u8>) -> u64 {
-//     random_bytes
-//         .into_iter()
-//         .tuple_windows::<(u8, u8, u8, u8, u8, u8, u8, u8)>()
-//         .map(|(x1, x2, x3, x4, x5, x6, x7, x8)| {
-//             u64::from_le_bytes([x1, x2, x3, x4, x5, x6, x7, x8])
-//         })
-//         .reduce(|acc, x| acc ^ x)
-//         .expect("Random Bytes were empty")
-// }
-
+#[candid::candid_method]
 #[ic_cdk::update]
 async fn random_number() -> CanisterResult<u64> {
     let (random_bytes,) = ic_cdk::api::management_canister::main::raw_rand().await?;
     Ok(u64::from_le_bytes(
-        random_bytes
+        random_bytes[..8]
+            .to_vec()
             .try_into()
             .expect("Random bytes were not up to 8 bytes"),
     ))
-    // Ok(get_random_number(random_bytes))
 }
 
+#[candid::candid_method]
 #[ic_cdk::update]
-async fn test_randomness() -> CanisterResult<(Vec<u8>, Vec<u8>)> {
-    let (random_data_1,) = ic_cdk::api::management_canister::main::raw_rand().await?;
-    let (random_data_2,) = ic_cdk::api::management_canister::main::raw_rand().await?;
-    Ok((random_data_1, random_data_2))
-}
-
-#[ic_cdk::update]
-async fn create_wallet(principal: Principal, username: String) -> CanisterResult<Wallet> {
-    let (random_data,) = ic_cdk::api::management_canister::main::raw_rand().await?;
+async fn create_wallet(username: String, principal: Principal) -> CanisterResult<Wallet> {
+    let (raw_subaccount_data,) = ic_cdk::api::management_canister::main::raw_rand().await?;
+    let (raw_principal_data,) = ic_cdk::api::management_canister::main::raw_rand().await?;
 
     let subaccount = Subaccount(
-        random_data
+        raw_subaccount_data
             .try_into()
             .expect("Expected random data to be 32 bytes"),
     );
 
-    let wallet_id = CustomUuid::random().await?;
+    let wallet_id = Principal::from_slice(&raw_principal_data[..29]);
+
+    // let principal = principal.unwrap_or(ic_cdk::api::data_certificate);
+
+    // let wallet_id = CustomUuid::random().await?;
 
     STATE.with_borrow_mut(|state| {
         if state.user_map.contains_key(&username) {
@@ -90,8 +73,11 @@ async fn create_wallet(principal: Principal, username: String) -> CanisterResult
     })
 }
 
+#[candid::candid_method]
 #[ic_cdk::query]
-fn get_account_identifier(wallet_identifier: CustomUuid) -> CanisterResult<AccountIdentifier> {
+fn get_account_identifier(
+    wallet_identifier: WalletIdentifier,
+) -> CanisterResult<AccountIdentifier> {
     STATE.with(|state| {
         state
             .borrow()
@@ -102,8 +88,9 @@ fn get_account_identifier(wallet_identifier: CustomUuid) -> CanisterResult<Accou
     })
 }
 
+#[candid::candid_method]
 #[ic_cdk::query]
-fn get_wallet(wallet_id: CustomUuid) -> CanisterResult<Wallet> {
+fn get_wallet(wallet_id: WalletIdentifier) -> CanisterResult<Wallet> {
     STATE.with_borrow(|state| {
         state
             .wallet_map
@@ -113,8 +100,9 @@ fn get_wallet(wallet_id: CustomUuid) -> CanisterResult<Wallet> {
     })
 }
 
+#[candid::candid_method]
 #[ic_cdk::query]
-fn get_wallet_id_by_user(username: String) -> CanisterResult<CustomUuid> {
+fn get_wallet_id_by_user(username: String) -> CanisterResult<WalletIdentifier> {
     STATE.with_borrow(|state| {
         state
             .user_map
@@ -125,9 +113,10 @@ fn get_wallet_id_by_user(username: String) -> CanisterResult<CustomUuid> {
 }
 
 // There should be a check to if the number that memo uses already exists
+#[candid::candid_method]
 #[ic_cdk::update]
 async fn send_to_account_identifier(
-    from: CustomUuid,
+    from: WalletIdentifier,
     to_account_id: AccountIdentifier,
     amount: u64,
 ) -> CanisterResult<u64> {
@@ -161,12 +150,16 @@ async fn send_to_account_identifier(
 }
 
 //? Possible Optimization Here
+#[candid::candid_method]
 #[ic_cdk::update]
-async fn get_wallet_balance_by_wallet_identifier(wallet_id: CustomUuid) -> CanisterResult<Tokens> {
+async fn get_wallet_balance_by_wallet_identifier(
+    wallet_id: WalletIdentifier,
+) -> CanisterResult<Tokens> {
     let account_id = get_account_identifier(wallet_id)?;
     get_wallet_balance_by_account_identifier(account_id).await
 }
 
+#[candid::candid_method]
 #[ic_cdk::update]
 async fn get_wallet_balance_by_account_identifier(
     account_identifier: AccountIdentifier,
