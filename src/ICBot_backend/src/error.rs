@@ -15,6 +15,7 @@ pub enum CanisterError {
     TransferError(TransferError),
     UserAlreadyExists,
     UserDoesNotExist,
+    InsufficientFunds,
 }
 
 // // ! GOD THIS IS SOOOOOOO GOING TO BITE ME IN THE ASS
@@ -54,6 +55,9 @@ impl ToString for CanisterError {
             }
             CanisterError::UserDoesNotExist => {
                 "The username that you provided does not exist".to_owned()
+            }
+            CanisterError::InsufficientFunds => {
+                format!("You do not have enough funds in your wallet")
             }
         }
     }

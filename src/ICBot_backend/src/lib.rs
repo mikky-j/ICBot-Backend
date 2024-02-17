@@ -25,7 +25,13 @@ struct State {
 }
 
 thread_local! {
-    static STATE: RefCell<State> = RefCell::default()
+    static STATE: RefCell<State> = RefCell::default();
+    static ADMIN_PRINCIPAL: Principal = Principal::from_text("jslcp-256ny-gyout-rmgbf-f23al-46xtv-lx4zw-du6tf-cddyy-w7hws-aqe").expect("Wrong Admin Principal");
+
+}
+
+fn get_ledger_principal() -> Principal {
+    MAINNET_LEDGER_CANISTER_ID
 }
 
 #[candid::candid_method]
@@ -42,7 +48,7 @@ async fn random_number() -> CanisterResult<u64> {
 
 #[candid::candid_method]
 #[ic_cdk::update]
-async fn create_wallet(username: String, principal: Principal) -> CanisterResult<Wallet> {
+async fn create_wallet(username: String) -> CanisterResult<Wallet> {
     let (raw_subaccount_data,) = ic_cdk::api::management_canister::main::raw_rand().await?;
     let (raw_principal_data,) = ic_cdk::api::management_canister::main::raw_rand().await?;
 
@@ -54,9 +60,7 @@ async fn create_wallet(username: String, principal: Principal) -> CanisterResult
 
     let wallet_id = Principal::from_slice(&raw_principal_data[..29]);
 
-    // let principal = principal.unwrap_or(ic_cdk::api::data_certificate);
-
-    // let wallet_id = CustomUuid::random().await?;
+    let principal = ADMIN_PRINCIPAL.with(|principal| principal.to_owned());
 
     STATE.with_borrow_mut(|state| {
         if state.user_map.contains_key(&username) {
@@ -112,6 +116,33 @@ fn get_wallet_id_by_user(username: String) -> CanisterResult<WalletIdentifier> {
     })
 }
 
+#[candid::candid_method]
+#[ic_cdk::update]
+async fn withdraw_x_icp_from_wallet(
+    wallet_id: WalletIdentifier,
+    amount: u64,
+    to_account_id: AccountIdentifier,
+) -> CanisterResult<u64> {
+    let balance = get_wallet_balance_by_wallet_identifier(wallet_id)
+        .await?
+        .e8s();
+    if balance < amount {
+        Err(CanisterError::InsufficientFunds)
+    } else {
+        send_to_account_identifier(wallet_id, to_account_id, amount).await
+    }
+}
+
+#[candid::candid_method]
+#[ic_cdk::update]
+async fn withdraw_all_icp_from_wallet(
+    wallet_id: WalletIdentifier,
+    to_account_id: AccountIdentifier,
+) -> CanisterResult<u64> {
+    let amount = get_wallet_balance_by_wallet_identifier(wallet_id).await?;
+    send_to_account_identifier(wallet_id, to_account_id, amount.e8s()).await
+}
+
 // There should be a check to if the number that memo uses already exists
 #[candid::candid_method]
 #[ic_cdk::update]
@@ -142,7 +173,7 @@ async fn send_to_account_identifier(
     };
 
     let transfer_result =
-        ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, transfer_args.clone()).await??;
+        ic_ledger_types::transfer(get_ledger_principal(), transfer_args.clone()).await??;
 
     STATE.with_borrow_mut(|state| state.transaction_map.insert(memo, transfer_args));
 
@@ -165,7 +196,7 @@ async fn get_wallet_balance_by_account_identifier(
     account_identifier: AccountIdentifier,
 ) -> CanisterResult<Tokens> {
     let balance = ic_ledger_types::account_balance(
-        MAINNET_LEDGER_CANISTER_ID,
+        get_ledger_principal(),
         AccountBalanceArgs {
             account: account_identifier,
         },
