@@ -34,6 +34,7 @@ fn get_ledger_principal() -> Principal {
     MAINNET_LEDGER_CANISTER_ID
 }
 
+/// Function to generate random number
 #[candid::candid_method]
 #[ic_cdk::update]
 async fn random_number() -> CanisterResult<u64> {
@@ -46,6 +47,7 @@ async fn random_number() -> CanisterResult<u64> {
     ))
 }
 
+/// Route to get create a new wallet
 #[candid::candid_method]
 #[ic_cdk::update]
 async fn create_wallet(username: String) -> CanisterResult<Wallet> {
@@ -77,6 +79,7 @@ async fn create_wallet(username: String) -> CanisterResult<Wallet> {
     })
 }
 
+/// Route to get the account identifier
 #[candid::candid_method]
 #[ic_cdk::query]
 fn get_account_identifier(
@@ -92,6 +95,7 @@ fn get_account_identifier(
     })
 }
 
+/// Route to get the wallet
 #[candid::candid_method]
 #[ic_cdk::query]
 fn get_wallet(wallet_id: WalletIdentifier) -> CanisterResult<Wallet> {
@@ -104,6 +108,7 @@ fn get_wallet(wallet_id: WalletIdentifier) -> CanisterResult<Wallet> {
     })
 }
 
+/// Route to get the wallet by username
 #[candid::candid_method]
 #[ic_cdk::query]
 fn get_wallet_id_by_user(username: String) -> CanisterResult<WalletIdentifier> {
@@ -116,6 +121,7 @@ fn get_wallet_id_by_user(username: String) -> CanisterResult<WalletIdentifier> {
     })
 }
 
+/// Route to get the wallet by username
 #[candid::candid_method]
 #[ic_cdk::update]
 async fn withdraw_x_icp_from_wallet(
@@ -133,6 +139,7 @@ async fn withdraw_x_icp_from_wallet(
     }
 }
 
+/// Route to get the wallet by username
 #[candid::candid_method]
 #[ic_cdk::update]
 async fn withdraw_all_icp_from_wallet(
@@ -180,7 +187,6 @@ async fn send_to_account_identifier(
     Ok(transfer_result)
 }
 
-//? Possible Optimization Here
 #[candid::candid_method]
 #[ic_cdk::update]
 async fn get_wallet_balance_by_wallet_identifier(
